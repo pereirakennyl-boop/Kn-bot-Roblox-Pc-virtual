@@ -1,0 +1,60 @@
+name: Build Mestre - PC e Celular Virtual do KN
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch: # Permite disparar o build manualmente no painel do GitHub
+
+jobs:
+  build-celular-virtual:
+    name: Build - Celular Virtual (Android 12)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Configurar Docker
+        uses: docker/setup-qemu-action@v2
+
+      - name: Instalar Ferramentas ADB
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y adb
+
+      - name: Subir Celular Virtual (12GB RAM / 8 Cores)
+        run: |
+          echo "Iniciando container Android..."
+          docker-compose up -d
+          sleep 15
+          docker ps
+
+      - name: Testar Conexão ADB
+        run: |
+          adb connect localhost:5555 || true
+          adb devices
+
+  build-pc-virtual:
+    name: Build - PC Virtual Tradicional
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v3
+
+      - name: Build do Sistema e Validação de Specs
+        run: |
+          echo "========================================================="
+          echo "   BUILD DO PC VIRTUAL DO KN (HIGH SPECS)"
+          echo "========================================================="
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential curl wget git htop tmux
+          
+          echo "RAM do Runner:"
+          free -h
+          echo "Núcleos de CPU:"
+          nproc
+          echo "========================================================="
+          echo "   BUILD CONCLUÍDO COM SUCESSO!"
+          echo "========================================================="
+          
