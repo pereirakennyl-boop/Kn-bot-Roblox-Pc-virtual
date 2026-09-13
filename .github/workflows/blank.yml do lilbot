@@ -1,0 +1,133 @@
+# ==============================================================================
+# SCRIPT MESTRE UNIFICADO: BUILD DE PC VIRTUAL E CELULAR VIRTUAL DO KN
+# Configuração Padrão: High Specs (12 GB RAM | 8 Cores CPU)
+# ==============================================================================
+
+# 1. Menu de Escolha do Tipo de Build
+Clear-Host
+Write-Host "=========================================================" -ForegroundColor Cyan
+Write-Host "         BUILD SYSTEM - PC VIRTUAL DO KN                 " -ForegroundColor Cyan
+Write-Host "=========================================================" -ForegroundColor Cyan
+Write-Host "1. Criar Celular Virtual (Android via Docker / Redroid)" -ForegroundColor Yellow
+Write-Host "2. Criar PC Virtual Tradicional (Windows/Linux via Hyper-V)" -ForegroundColor Yellow
+Write-Host "=========================================================" -ForegroundColor Cyan
+$Opcao = Read-Host "Selecione o tipo de build desejado (1 ou 2)"
+
+# Parâmetros Globais de Alta Performance
+$VmName       = "Pc virtual do kn"
+$RamMB        = 12288                          # 12 GB de RAM
+$CpuCores     = 8                              # 8 Núcleos de CPU
+$VhdSizeGB    = 80GB                           # Disco Rígido de 80 GB
+$BasePath     = "C:\VirtualMachines\PcVirtualDoKN"
+
+# ==============================================================================
+# OPÇÃO 1: PC VIRTUAL DE CELULAR (ANDROID REDROID)
+# ==============================================================================
+if ($Opcao -eq "1") {
+    Write-Host "`n[+] Iniciando Build do Celular Virtual do KN (Android 12)..." -ForegroundColor Cyan
+
+    # Verificar se Docker Desktop está instalado
+    if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
+        Write-Host "[!] Docker não encontrado. Instale o Docker Desktop para subir o Celular Virtual." -ForegroundColor Red
+        Exit
+    }
+
+    if (!(Test-Path -Path $BasePath)) { New-Item -ItemType Directory -Path $BasePath -Force | Out-Null }
+
+    # Gerar arquivo docker-compose.yml otimizado para o Celular Virtual
+    $DockerComposePath = "$BasePath\docker-compose.yml"
+    $DockerComposeContent = @"
+version: '3.8'
+services:
+  celular_kn:
+    image: redroid/redroid:12.0.0-latest
+    container_name: Pc_Virtual_Do_KN_Celular
+    stdin_open: true
+    tty: true
+    privileged: true
+    ports:
+      - "5555:5555"
+    deploy:
+      resources:
+        limits:
+          cpus: '$CpuCores'
+          memory: 12G
+    volumes:
+      - ./data:/data
+    command:
+      - androidboot.hardware=redroid
+      - androidboot.redroid.gpu.mode=guest
+      - androidboot.redroid.width=1080
+      - androidboot.redroid.height=2400
+      - androidboot.redroid.fps=60
+"@
+    Set-Content -Path $DockerComposePath -Value $DockerComposeContent
+    Write-Host "[+] Arquivo de configuração criado em: $DockerComposePath" -ForegroundColor Green
+
+    # Executar o Build do Container
+    Set-Location -Path $BasePath
+    Write-Host "[+] Subindo container Android (12GB RAM / 8 Cores)..." -ForegroundColor Cyan
+    docker-compose up -d
+
+    Write-Host "`n=========================================================" -ForegroundColor Green
+    Write-Host "   BUILD DO CELULAR VIRTUAL CONCLUÍDO!" -ForegroundColor Green
+    Write-Host "   Conecte via ADB: adb connect localhost:5555" -ForegroundColor Yellow
+    Write-Host "   Espelhe a tela com: scrcpy" -ForegroundColor Yellow
+    Write-Host "=========================================================" -ForegroundColor Green
+}
+
+# ==============================================================================
+# OPÇÃO 2: PC VIRTUAL TRADICIONAL (HYPER-V)
+# ==============================================================================
+elseif ($Opcao -eq "2") {
+    Write-Host "`n[+] Iniciando Build do PC Virtual do KN (Hyper-V)..." -ForegroundColor Cyan
+
+    $VhdPath = "$BasePath\$VmName.vhdx"
+    $IsoPath = "C:\ISOs\Sistema.iso"  # Altere para a sua ISO, se houver
+
+    # Verificar / Ativar Hyper-V
+    $hyperv = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+    if ($hyperv.State -ne "Enabled") {
+        Write-Host "[+] Habilitando o Hyper-V no Windows..." -ForegroundColor Yellow
+        Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart
+    }
+
+    # Criar Diretório e Disco VHDX
+    if (!(Test-Path -Path $BasePath)) { New-Item -ItemType Directory -Path $BasePath -Force | Out-Null }
+    if (!(Test-Path -Path $VhdPath)) {
+        Write-Host "[+] Criando disco virtual de $VhdSizeGB..." -ForegroundColor Cyan
+        New-VHD -Path $VhdPath -SizeBytes $VhdSizeGB -Dynamic | Out-Null
+    }
+
+    # Criar a VM com 12GB RAM e 8 Processadores
+    if (!(Get-VM -Name $VmName -ErrorAction SilentlyContinue)) {
+        New-VM -Name $VmName `
+               -MemoryStartupBytes (12GB) `
+               -VHDPath $VhdPath `
+               -SwitchName "Default Switch" `
+               -Generation 2 `
+               -Path $BasePath | Out-Null
+
+        Set-VMProcessor -VMName $VmName -Count $CpuCores
+        Set-VMMemory -VMName $VmName -DynamicMemoryEnabled $false
+
+        if (Test-Path -Path $IsoPath) {
+            Add-VMDvdDrive -VMName $VmName -Path $IsoPath
+            $dvd = Get-VMDvdDrive -VMName $VmName
+            Set-VMFirmware -VMName $VmName -FirstBootDevice $dvd
+        }
+    }
+
+    # Iniciar a VM
+    Write-Host "[+] Ligando o PC Virtual..." -ForegroundColor Cyan
+    Start-VM -Name $VmName
+    vmconnect.exe localhost $VmName
+
+    Write-Host "`n=========================================================" -ForegroundColor Green
+    Write-Host "   BUILD DO PC VIRTUAL DO KN FINALIZADO COM SUCESSO!" -ForegroundColor Green
+    Write-Host "   Especificações: 12 GB RAM | 8 Núcleos | Disco 80 GB" -ForegroundColor Yellow
+    Write-Host "=========================================================" -ForegroundColor Green
+}
+else {
+    Write-Host "[!] Opção inválida. Execute o script novamente." -ForegroundColor Red
+}
