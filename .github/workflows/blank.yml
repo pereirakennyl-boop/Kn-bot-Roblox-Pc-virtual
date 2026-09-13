@@ -3,7 +3,7 @@
 # ==============================================================================
 
 # 1. Parâmetros de Configuração da Máquina Virtual
-$VmName       = "pcvirtual"                 # Nome da VM
+
 $VmMemoryBytes= 4GB                            # Memória RAM (ex: 4GB, 8GB)
 $CpuCores     = 2                              # Quantidade de núcleos de CPU
 $VhdSize      = 50GB                           # Tamanho do Disco Rígido Virtual
