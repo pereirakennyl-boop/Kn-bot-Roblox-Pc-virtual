@@ -1,0 +1,88 @@
+# ==============================================================================
+# SCRIPT DE CRIAÇÃO E BUILD DE PC VIRTUAL (HYPER-V)
+# ==============================================================================
+
+# 1. Parâmetros de Configuração da Máquina Virtual
+$VmName       = "MeuPCVirtual"                 # Nome da VM
+$VmMemoryBytes= 4GB                            # Memória RAM (ex: 4GB, 8GB)
+$CpuCores     = 2                              # Quantidade de núcleos de CPU
+$VhdSize      = 50GB                           # Tamanho do Disco Rígido Virtual
+$Path         = "C:\VirtualMachines\$VmName"   # Diretório onde a VM será salva
+$VhdPath      = "$Path\$VmName.vhdx"           # Caminho do arquivo VHDX
+$SwitchName   = "Default Switch"               # Placa de rede padrão (com acesso à Internet)
+$IsoPath      = "C:\ISOs\Windows11.iso"        # Caminho para a sua imagem ISO (Altere conforme necessário)
+
+# 2. Habilitar a funcionalidade Hyper-V (se ainda não estiver ativa)
+Write-Host "Verificando o recurso Hyper-V..." -ForegroundColor Cyan
+$hypervStatus = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All
+
+if ($hypervStatus.State -ne "Enabled") {
+    Write-Host "Habilitando o Hyper-V no sistema..." -ForegroundColor Yellow
+    Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All -NoRestart
+    Write-Host "ATENÇÃO: Pode ser necessário reiniciar o computador para concluir a instalação do Hyper-V." -ForegroundColor Red
+} else {
+    Write-Host "Hyper-V já está ativado no sistema!" -ForegroundColor Green
+}
+
+# 3. Criar pasta do projeto se não existir
+if (!(Test-Path -Path $Path)) {
+    New-Item -ItemType Directory -Path $Path -Force | Out-Null
+    Write-Host "Diretório de destino criado em: $Path" -ForegroundColor Green
+}
+
+# 4. Criar o Disco Rígido Virtual (VHDX Dinâmico)
+if (!(Test-Path -Path $VhdPath)) {
+    Write-Host "Criando disco virtual de $VhdSize..." -ForegroundColor Cyan
+    New-VHD -Path $VhdPath -SizeBytes $VhdSize -Dynamic | Out-Null
+} else {
+    Write-Host "Arquivo de disco virtual já existe em $VhdPath" -ForegroundColor Yellow
+}
+
+# 5. Criar e Configurar a Máquina Virtual (Geração 2 para UEFI/Sistemas Modernos)
+if (!(Get-VM -Name $VmName -ErrorAction SilentlyContinue)) {
+    Write-Host "Criando a Máquina Virtual '$VmName'..." -ForegroundColor Cyan
+    New-VM -Name $VmName `
+           -MemoryStartupBytes $VmMemoryBytes `
+           -VHDPath $VhdPath `
+           -SwitchName $SwitchName `
+           -Generation 2 `
+           -Path $Path | Out-Null
+
+    # Ajustar quantidade de processadores virtuais
+    Set-VMProcessor -VMName $VmName -Count $CpuCores
+
+    # Desativar ou ajustar memória dinâmica (Opcional)
+    Set-VMMemory -VMName $VmName -DynamicMemoryEnabled $false
+
+    # Desativar Secure Boot temporariamente caso use ISOs customizadas ou Linux não assinado
+    # Set-VMFirmware -VMName $VmName -EnableSecureBoot Off
+
+    Write-Host "Máquina Virtual '$VmName' criada com sucesso!" -ForegroundColor Green
+} else {
+    Write-Host "A máquina virtual '$VmName' já existe." -ForegroundColor Yellow
+}
+
+# 6. Montar a imagem ISO para Instalação do Sistema Operacional (se a ISO existir)
+if (Test-Path -Path $IsoPath) {
+    Write-Host "Inserindo a ISO de instalação ($IsoPath)..." -ForegroundColor Cyan
+    
+    # Adiciona a unidade de DVD virtual e insere a ISO
+    Add-VMDvdDrive -VMName $VmName -Path $IsoPath
+    
+    # Define a unidade de DVD como primeiro dispositivo de boot
+    $dvd = Get-VMDvdDrive -VMName $VmName
+    Set-VMFirmware -VMName $VmName -FirstBootDevice $dvd
+    
+    Write-Host "ISO montada com sucesso como dispositivo de inicialização primário." -ForegroundColor Green
+} else {
+    Write-Host "Aviso: O arquivo ISO especificado não foi encontrado em '$IsoPath'." -ForegroundColor Red
+    Write-Host "A máquina foi criada sem a mídia de instalação." -ForegroundColor Yellow
+}
+
+# 7. Inicialização (Build/Start)
+Write-Host "`n========================================================" -ForegroundColor White
+Write-Host "Build do PC Virtual concluído!" -ForegroundColor Green
+Write-Host "Para iniciar a VM e abrir o console de gerenciamento, use:" -ForegroundColor Cyan
+Write-Host "  Start-VM -Name '$VmName'" -ForegroundColor Gray
+Write-Host "  vmconnect.exe localhost '$VmName'" -ForegroundColor Gray
+Write-Host "========================================================" -ForegroundColor White
