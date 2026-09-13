@@ -1,0 +1,70 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  # Imagem base oficial do Ubuntu 22.04 LTS (64-bit)
+  config.vm.box = "ubuntu/jammy64"
+
+  # Nome do Host do PC Virtual
+  config.vm.hostname = "pc-virtual-do-kn"
+
+  # Configuração de Rede (Redirecionamento de portas úteis)
+  config.vm.network "forwarded_port", guest: 80, host: 8080
+  config.vm.network "forwarded_port", guest: 3000, host: 3000
+
+  # Configuração do Provedor VirtualBox
+  config.vm.provider "virtualbox" do |vb|
+    vb.name = "Pc virtual do kn"
+    vb.memory = "4096"        # 4 GB de Memória RAM
+    vb.cpus = 2               # 2 Núcleos de Processador
+    vb.customize ["modifyvm", :id, "--vram", "128"]
+    vb.customize ["modifyvm", :id, "--clipboard-mode", "bidirectional"]
+  end
+
+  # Script de Provisionamento / Build Interno do Sistema
+  config.vm.provision "shell", inline: <<-SHELL
+    set -e
+    echo "========================================================="
+    echo "   INICIANDO O BUILD DO PC VIRTUAL DO KN"
+    echo "========================================================="
+
+    # Atualização do sistema
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y && apt-get upgrade -y
+
+    # Instalação de ferramentas essenciais
+    apt-get install -y \
+      build-essential \
+      curl \
+      wget \
+      git \
+      htop \
+      unzip \
+      tmux \
+      software-properties-common \
+      ufw
+
+    # Banner de boas-vindas personalizado para o KN
+    cat << 'EOF' > /etc/motd
+
+=============================================================
+  __  __  _                           _                          
+ |  \/  |(_)                         (_)                         
+ | \  / | _   _ __   __ _  _ __  _  _  _  _ __   __ _   __ _ 
+ | |\/| || | | '_ \ / _` || '__|| || || || '_ \ / _` | / _` |
+ | |  | || | | | | || (_| || |   | || || || | | || (_| || (_| |
+ |_|  |_||_| |_| |_|\__,_||_|   |_||_||_||_| |_|\__, | \__,_|
+                                                 __/ |       
+                                                |___/        
+               BEM-VINDO AO PC VIRTUAL DO KN!                
+=============================================================
+[+] Ambiente totalmente configurado e pronto para uso.
+[+] RAM: 12GB | CPU: 8 Cores | OS: Ubuntu 22.04 LTS
+
+EOF
+
+    echo "========================================================="
+    echo "   BUILD DO PC VIRTUAL DO KN CONCLUÍDO COM SUCESSO!"
+    echo "========================================================="
+  SHELL
+end
